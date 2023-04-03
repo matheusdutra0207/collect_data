@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
+import sys
 
 import rospy
 from geometry_msgs.msg import PoseWithCovariance, PoseWithCovarianceStamped
@@ -56,27 +57,40 @@ def save_data():
 
 def listener():
     rospy.init_node('listener', anonymous=True)
-    rospy.Subscriber('/odometry/filtered_map', Odometry, callback_ekf)
-    rospy.Subscriber('/amcl_pose', PoseWithCovarianceStamped, callback_amcl)
+    if 'ekf' in consume_list:
+        rospy.Subscriber('/odometry/filtered_map', Odometry, callback_ekf)
+
+    if 'amcl' in consume_list:
+        rospy.Subscriber('/amcl_pose', PoseWithCovarianceStamped, callback_amcl)
+
     print("sub in all topics")
 
     rate = rospy.Rate(10) 
 
     while not rospy.is_shutdown():
-        data_gt_consume()
-        data_reconstruction_consume()
+        if 'rec_rc' in consume_list:
+            data_gt_consume()
+        if 'rec' in consume_list:
+            data_reconstruction_consume()
         save_data()
         rate.sleep()
 
 if __name__ == '__main__':
-    data_id = 27
+    data_id = int(sys.argv[1])
+    aruco_id = 5
+    consume_list = sys.argv[2:]
     brocker_uri = "amqp://10.20.5.2:30000"
 
-    position_data = {'gt':             {'x': [], 'y': [], 'yaw': []}, 
-                    'reconstruction':  {'x': [], 'y': [], 'yaw': []},
-                    'amcl':            {'x': [], 'y': [], 'yaw': []},
-                    'ekf':             {'x': [], 'y': [], 'yaw': []}
-                    }
+    input("Pressione ENTER para continuar")
+    position_data = {}
+    if 'amcl' in consume_list:
+        position_data['amcl'] = {'x': [], 'y': [], 'yaw': []}
+    if 'ekf' in consume_list:
+        position_data['ekf'] = {'x': [], 'y': [], 'yaw': []}
+    if 'rec' in consume_list:
+        position_data['reconstruction'] = {'x': [], 'y': [], 'yaw': []}        
+    if 'rec_rc' in consume_list:
+        position_data['gt'] = {'x': [], 'y': [], 'yaw': []}       
 
     df_data = pd.DataFrame.from_dict(position_data)    
 
@@ -86,6 +100,6 @@ if __name__ == '__main__':
     subscription_0 = Subscription(channel_0)
     subscription_1 = Subscription(channel_1)
 
-    subscription_0.subscribe(topic="localization.5.aruco")
-    subscription_1.subscribe(topic="reconstruction.5.ArUco")
+    subscription_0.subscribe(topic=f"localization.{aruco_id}.aruco")
+    subscription_1.subscribe(topic=f"reconstruction.{aruco_id}.ArUco")
     listener()
